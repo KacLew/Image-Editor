@@ -5,6 +5,7 @@ import android.Manifest.permission.WRITE_EXTERNAL_STORAGE
 import android.R.attr.bitmap
 import android.R.attr.filterTouchesWhenObscured
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -12,15 +13,13 @@ import android.graphics.*
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.Environment.getExternalStorageDirectory
 import android.provider.MediaStore
 import android.view.View
-import android.widget.Button
-import android.widget.ImageView
-import android.widget.SeekBar
-import android.widget.TextView
+import android.widget.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.blue
@@ -45,6 +44,8 @@ import java.util.jar.Manifest
 
 
 class MainActivity : Activity() {
+    val StoragePermission = 101
+
     var imageView: ImageView? = null
     var imageUri: Uri? = null
 
@@ -63,21 +64,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        System.loadLibrary("NativeImageProcessor")
-
-        Dexter.withContext(this)
-                .withPermission(WRITE_EXTERNAL_STORAGE)
-                .withListener(object : PermissionListener {
-                    override fun onPermissionGranted(p0: PermissionGrantedResponse?) {
-
-                    }
-                    override fun onPermissionDenied(p0: PermissionDeniedResponse?) {
-                    }
-
-                    override fun onPermissionRationaleShouldBeShown(p0: PermissionRequest?, p1: PermissionToken?) {
-                    }
-                }
-                ).check()
+        checkForPermisisons(android.Manifest.permission.WRITE_EXTERNAL_STORAGE, "storage", StoragePermission)
 
         val brightBar = findViewById<View>(R.id.BrightnessBar) as SeekBar
         brightBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -111,6 +98,51 @@ class MainActivity : Activity() {
 
         binaryButton = findViewById<View>(R.id.buttonMakeBinary) as Button
         binaryButton!!.setOnClickListener { ApplyBinary() }
+    }
+
+
+    private fun checkForPermisisons(permission : String, name : String, requestCode: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            when {
+                ContextCompat.checkSelfPermission(applicationContext, permission) == PackageManager.PERMISSION_GRANTED -> {
+                    Toast.makeText(applicationContext, "$name permission granted", Toast.LENGTH_SHORT).show()
+                }
+
+                shouldShowRequestPermissionRationale(permission) -> showDialog(permission, name, requestCode)
+                else -> ActivityCompat.requestPermissions(this, arrayOf(permission), requestCode)
+            }
+        }
+    }
+
+
+    private fun showDialog(permission: String, name: String, requestCode: Int) {
+        val builder = AlertDialog.Builder(this)
+
+        builder.apply {
+            setMessage("Permission to access your $name is required to use this app")
+            setTitle("Permission required")
+            setPositiveButton("Ok") {dialog, which ->
+                ActivityCompat.requestPermissions(this@MainActivity, arrayOf(permission), requestCode)
+
+            }
+        }
+
+        val dialog = builder.create()
+        dialog.show()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        fun innerCheck(name : String) {
+            if (grantResults.isEmpty() || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(applicationContext, "$name permission refused", Toast.LENGTH_SHORT).show()
+            }
+            else {
+                Toast.makeText(applicationContext, "$name permission granted", Toast.LENGTH_SHORT).show()
+            }
+        }
+        when (requestCode) {
+            StoragePermission -> innerCheck("storage")
+        }
     }
 
     private fun ApplyBinary() {
